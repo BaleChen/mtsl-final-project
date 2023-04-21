@@ -13,6 +13,8 @@ from torchvision import transforms, datasets, models
 import pandas as pd
 import numpy as np
 
+from UniformAugment import UniformAugment
+
 #########################
 ##   Dataset Classes   ##
 #########################
@@ -21,7 +23,7 @@ class SeedlingDataset(Dataset):
     def __init__(self, df, path, small_sample=False, transform=None, use_train_folder=True):
         self.df = df
         self.path = path
-        self.transform = transform
+        self.transform = transform.transforms.insert(0, UniformAugment())
         if small_sample:
             self.df = self.df.sample(50)
         if use_train_folder:
@@ -87,7 +89,7 @@ def get_train_trans(image_size=224, data_aug = False):
             transforms.GaussianBlur(7, sigma=(0.1, 1.0)),
             #transforms.ColorJitter(brightness=0.1, saturation=0.1),
             Lighting(0.9),
-            transforms.RandomErasing(),
+            transforms.RandomErasing(scale=(0.02, 0.05), ratio=(0.7, 0.9)),
         ])
     else: 
         return transforms.Compose([
