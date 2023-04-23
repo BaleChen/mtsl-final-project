@@ -16,6 +16,13 @@ def init_pretrained_model(model_name: str, num_class: int):
     Loading pretrained model base on model name
     """
     torch.hub.set_dir("../.cache")
+    
+    if model_name == "resnet101":
+        model = torch.hub.load("pytorch/vision:v0.13.1", "resnet101", weights="IMAGENET1K_V2")
+        in_features = model.fc.in_features
+        model.fc = nn.Linear(in_features, num_class)
+        return model
+    
     if model_name == "resnet50":
         model = torch.hub.load("pytorch/vision:v0.13.1", "resnet50", weights="IMAGENET1K_V2")
         in_features = model.fc.in_features
