@@ -23,7 +23,8 @@ class SeedlingDataset(Dataset):
     def __init__(self, df, path, small_sample=False, transform=None, use_train_folder=True):
         self.df = df
         self.path = path
-        self.transform = transform.transforms.insert(0, UniformAugment())
+        self.transform = transform
+        # self.transform.transforms.insert(0, UniformAugment())
         if small_sample:
             self.df = self.df.sample(50)
         if use_train_folder:

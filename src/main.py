@@ -8,7 +8,7 @@ from utils import prepare_save_folder
 
 from ray import tune, air
 from ray.air import session
-from ray.tune.search.optuna import OptunaSearch
+# from ray.tune.search.optuna import OptunaSearch
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -35,9 +35,8 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--es-delta", type=float, default=0.0)
     
-    # TODO
     parser.add_argument("--data-aug", dest="data_aug", action="store_true")
-    
+    parser.add_argument("--tuning-its", type=int, default=5)
     args = parser.parse_args()
     
     args.save_dir = prepare_save_folder(args)
@@ -49,8 +48,6 @@ if __name__ == "__main__":
     
     print(f"INFO: Computation device: {args.device}")
     print()
-    
-    args.small_sample = bool(args.small_sample)
     
     if args.small_sample:
         print("INFO: This is a small sample trial.")
@@ -64,8 +61,8 @@ if __name__ == "__main__":
         args.data_dir = os.path.abspath("../data") + "/"
         
         search_space = {
-            "lr": tune.loguniform(1e-5, 1e-3),
-            "batch_size": tune.grid_search([32, 64, 128])
+            "lr": tune.loguniform(1e-5, 2e-4),
+            "batch_size": tune.grid_search([32, 64])
         }
         
         tuner = tune.Tuner(
@@ -78,12 +75,15 @@ if __name__ == "__main__":
                 metric="accuracy",
                 mode="max",
                 # search_alg=OptunaSearch(), # If not specified, it uses RandomSearch
-                num_samples=5
+                num_samples=args.tuning_its
             )
         )
         
         results = tuner.fit()
         best_result = results.get_best_result("accuracy", "max")
+        
+        with open(os.path.join(args.save_dir, "best_result.json"), "w") as f:
+            json.dump(best_result.config, f, indent=4)
         
         print("="*20)
         print("Best trial config: {}".format(best_result.config))
@@ -96,6 +96,7 @@ if __name__ == "__main__":
         es = "es-" if args.early_stop else ""
         ss = "ss-" if args.small_sample else ""
         aug = "aug-" if args.data_aug else ""
+        
         best_model_path = f"../results/{ss}ht-{args.model}-{aug}ep{args.epochs}-{es}p{args.patience}-dl{args.es_delta}/lr{best_result.config['lr']}-b{best_result.config['batch_size']}/best_model.pt"
         
         test_exp = Experiment(args)

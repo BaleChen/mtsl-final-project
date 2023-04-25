@@ -66,7 +66,9 @@ class Experiment:
         for inputs, targets in tqdm(self.train_loader):
             inputs = inputs.to(self.args.device)
             targets = targets.to(self.args.device)
-
+            
+            self.optimizer.zero_grad()
+            
             outputs = self.model(inputs)
             _,preds = torch.max(outputs, dim = 1)
             loss = self.criterion(outputs, targets)
@@ -81,7 +83,7 @@ class Experiment:
             clip_grad_norm_(self.model.parameters(), max_norm=1.0)
 
             self.optimizer.step()
-            self.optimizer.zero_grad()
+            
 
         return correct_predictions.double() / len(self.train_loader.dataset), np.mean(losses)
 
@@ -124,8 +126,9 @@ class Experiment:
         """
         Load a specific checkpoint.
         """
-        self.model.load_state_dict(torch.load(path))
-        
+        device = torch.device(self.args.device)
+        self.model.load_state_dict(torch.load(path, map_location=device))
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.args.lr)
         
     def fit(self):
         """
@@ -231,7 +234,6 @@ class Experiment:
         df_pred = pd.DataFrame(pred_list)
         
         return df_pred
-        
 
     def plot():
         pass
