@@ -31,7 +31,10 @@ class Experiment:
         self.args = args
         
         self.classes, _, _ = get_classes_indices_mapping(self.args.data_dir)
-        self.model = Model(self.args.model, len(self.classes))
+        self.model = Model(self.args.model, len(self.classes))        
+        if args.checkpoint_path!=None:
+            self.load_checkpoint(path=args.checkpoint_path)
+            
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.args.lr)
         

@@ -34,6 +34,7 @@ if __name__ == "__main__":
     parser.add_argument("--early_stop", dest="early_stop", action="store_true")
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--es-delta", type=float, default=0.0)
+    parser.add_argument("--checkpoint_path", type=str, default=None)
     
     parser.add_argument("--data-aug", dest="data_aug", action="store_true")
     parser.add_argument("--tuning-its", type=int, default=5)
