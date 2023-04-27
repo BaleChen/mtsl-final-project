@@ -24,6 +24,7 @@ if __name__ == "__main__":
     parser.add_argument("--name", type=str, default="exp")
     parser.add_argument("--hyper-tune", dest="hyper_tune", action="store_true")
     parser.add_argument("--small-sample", dest="small_sample", action="store_true")
+    parser.add_argument("--fine-tune", dest="fine_tune", action="store_true")
     
     # Experiment Config
     parser.add_argument("--model", type=str, default="resnet50")
@@ -34,8 +35,10 @@ if __name__ == "__main__":
     parser.add_argument("--early_stop", dest="early_stop", action="store_true")
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--es-delta", type=float, default=0.0)
+    parser.add_argument("--checkpoint_path", type=str, default=None)
     
     parser.add_argument("--data-aug", dest="data_aug", action="store_true")
+    parser.add_argument("--aug-size", type=float, default=1.0)
     parser.add_argument("--tuning-its", type=int, default=5)
     args = parser.parse_args()
     
@@ -52,6 +55,9 @@ if __name__ == "__main__":
     if args.small_sample:
         print("INFO: This is a small sample trial.")
         print()
+    
+    if args.fine_tune and args.checkpoint_path is None:
+        raise Exception("Checkpoint not provided. Please specify the path to the model state dict.")
     
     # Experiment Section
     
@@ -97,22 +103,26 @@ if __name__ == "__main__":
         ss = "ss-" if args.small_sample else ""
         aug = "aug-" if args.data_aug else ""
         
-        best_model_path = f"../results/{ss}ht-{args.model}-{aug}ep{args.epochs}-{es}p{args.patience}-dl{args.es_delta}/lr{best_result.config['lr']}-b{best_result.config['batch_size']}/best_model.pt"
+        best_model_path = f"../results/{ss}ht-{args.model}-{aug}as{arg.aug_size}-ep{args.epochs}-{es}p{args.patience}-dl{args.es_delta}/lr{best_result.config['lr']}-b{best_result.config['batch_size']}/best_model.pt"
         
         test_exp = Experiment(args)
         test_exp.load_checkpoint(best_model_path)
         results = test_exp.pred_on_test()
         results.to_csv(args.save_dir+"results.csv", index=False)
-        
+
     else:
-        print("INFO: This is a training session.")
-        print()
+        if args.fine_tune:
+            print("INFO: This is a finetuning session.")
+            print()
+        else:
+            print("INFO: This is a training session.")
+            print()
         exp = Experiment(args)
         exp.fit()
         
         exp.load_checkpoint(args.save_dir+"best_model.pt")
         results = exp.pred_on_test()
         results.to_csv(args.save_dir+"results.csv", index=False)
-        
+
     # TODO
     # Result plotting

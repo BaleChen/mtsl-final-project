@@ -37,11 +37,14 @@ def prepare_save_folder(args):
     es = "es-" if args.early_stop else ""
     ss = "ss-" if args.small_sample else ""
     aug = "aug-" if args.data_aug else ""
+    ft = "ft-" if args.fine_tune else ""
+    
     if not args.hyper_tune:
-        directory = f"../results/{ss}{args.model}-{aug}ep{args.epochs}-b{args.batch_size}-lr{args.lr}-{es}p{args.patience}-dl{args.es_delta}/"
+        directory = f"../results/{ss}{ft}{args.model}-{aug}as{args.aug_size}-ep{args.epochs}-b{args.batch_size}-lr{args.lr}-{es}p{args.patience}-dl{args.es_delta}/"
+        
     else:
         abs_path = os.path.abspath("../results")
-        directory = f"{abs_path}/{ss}{ht}-{args.model}-{aug}ep{args.epochs}-{es}p{args.patience}-dl{args.es_delta}/"
+        directory = f"{abs_path}/{ss}{ht}-{args.model}-{aug}as{args.aug_size}-ep{args.epochs}-{es}p{args.patience}-dl{args.es_delta}/"
     
     if not os.path.exists(directory):
         os.makedirs(directory)

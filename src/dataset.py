@@ -6,12 +6,14 @@ from PIL import Image
 from sklearn.model_selection import train_test_split
 
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 import torchvision
 from torchvision import transforms, datasets, models
 
 import pandas as pd
 import numpy as np
+
+from collections import Counter
 
 from UniformAugment import UniformAugment
 
@@ -147,7 +149,7 @@ def get_data_df(data_dir):
     return data_df
 
 def get_train_val_loader(data_dir, val_ratio=0.2, train_trans=None, val_trans=None,
-                        batch_size=32, small_sample=False):
+                        batch_size=32, small_sample=False, num_classes=12, augment_size=1.0):
     """
     Generate the train and validation dataloaders.
     """
@@ -159,8 +161,16 @@ def get_train_val_loader(data_dir, val_ratio=0.2, train_trans=None, val_trans=No
     val_set = SeedlingDataset(val_df, data_dir, small_sample=small_sample,
                               transform = val_trans)
     
-    return ( DataLoader(train_set, batch_size=batch_size, shuffle=True),
-            DataLoader(val_set, batch_size=batch_size, shuffle=True) )
+    if augment_size != 0:
+        weights = list(Counter(train_df['label']).values())
+        max_sample = int(max(weights) * augment_size)
+        weights = torch.ones(len(weights))
+        sampler = WeightedRandomSampler(weights, max_sample*num_classes)
+    else:
+        sampler = None
+
+    return (DataLoader(train_set, batch_size=batch_size, sampler=sampler),
+            DataLoader(val_set, batch_size=batch_size, shuffle=True))
     
 def test_image_loader(im_dir, trans):
     """

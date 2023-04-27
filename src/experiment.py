@@ -32,6 +32,12 @@ class Experiment:
         
         self.classes, _, _ = get_classes_indices_mapping(self.args.data_dir)
         self.model = Model(self.args.model, len(self.classes))
+        self.model = Model(self.args.model, len(self.classes))
+        
+        if args.checkpoint_path != None:
+            print(f"INFO: Loading checkpoint from {args.checkpoint_path}...")
+            self.load_checkpoint(path=args.checkpoint_path)
+            
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.args.lr)
         
@@ -41,7 +47,9 @@ class Experiment:
                                                         train_trans=self.train_trans,
                                                         val_trans=self.val_trans,
                                                         batch_size=self.args.batch_size,
-                                                        small_sample=self.args.small_sample)
+                                                        small_sample=self.args.small_sample,
+                                                        augment_size=self.args.aug_size)
+        
         self.test_df = pd.read_csv(self.args.data_dir + "sample_submission.csv")
         
         
@@ -237,7 +245,7 @@ class Experiment:
 
     def plot():
         pass
-    
+
     
 def tuning_session(config, args):
     
@@ -249,5 +257,4 @@ def tuning_session(config, args):
         os.makedirs(args.save_dir)
     
     exp = Experiment(args)
-    
     exp.fit()
