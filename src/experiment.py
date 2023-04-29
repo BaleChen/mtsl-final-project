@@ -1,3 +1,6 @@
+# This script has all the experiment-level functions used 
+# to do training, evaluation, result-generation, hyperparameter tuning...
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,7 +35,6 @@ class Experiment:
         
         self.classes, _, _ = get_classes_indices_mapping(self.args.data_dir)
         self.model = Model(self.args.model, len(self.classes))
-        self.model = Model(self.args.model, len(self.classes))
         
         if args.checkpoint_path != None:
             print(f"INFO: Loading checkpoint from {args.checkpoint_path}...")
@@ -43,7 +45,9 @@ class Experiment:
         
         self.train_trans = get_train_trans(image_size=224, data_aug=self.args.data_aug)
         self.val_trans = get_val_trans(image_size=224)
+        
         self.train_loader, self.val_loader = get_train_val_loader(self.args.data_dir,
+                                                        val_ratio=self.args.val_ratio,
                                                         train_trans=self.train_trans,
                                                         val_trans=self.val_trans,
                                                         batch_size=self.args.batch_size,
@@ -66,12 +70,38 @@ class Experiment:
         """
         Training for one epoch. 
         """
+        
         self.model = self.model.train()
 
         losses = []
         correct_predictions = 0
 
+        aug_list = [transforms.RandomGrayscale(p=0.5),
+                transforms.RandomRotation(degrees=(-150, 150)),
+                transforms.RandomErasing(scale=(0.02, 0.05), ratio=(0.7, 0.9)),
+                transforms.ColorJitter(brightness=0.3, contrast=0.2, saturation=0.2, hue=0.2),
+                transforms.GaussianBlur(7, sigma=(0.1, 1.0))
+            ]
+
+        
         for inputs, targets in tqdm(self.train_loader):
+            augments = [transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5)]
+            if self.args.data_aug != 0:
+                augments.extend([aug_list[i] for i in np.random.randint(len(aug_list), size=self.args.data_aug)])
+                augments.append(transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+            elif self.args.data_aug == 0:
+                augments = [#transforms.RandomCrop(image_size, pad_if_needed=True),
+                #transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                transforms.RandomRotation(degrees=(60, 90)),
+                transforms.RandomHorizontalFlip(),
+                transforms.GaussianBlur(7, sigma=(0.1, 1.0)),
+                #transforms.ColorJitter(brightness=0.1, saturation=0.1),
+                Lighting(0.9),
+                transforms.RandomErasing(scale=(0.02, 0.05), ratio=(0.7, 0.9))]
+            inputs = transforms.Compose(augments)(inputs)
+            
             inputs = inputs.to(self.args.device)
             targets = targets.to(self.args.device)
             
@@ -88,7 +118,7 @@ class Experiment:
             loss.backward()
             
             # Potentially remove it
-            clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            # clip_grad_norm_(self.model.parameters(), max_norm=1.0)
 
             self.optimizer.step()
             
@@ -102,6 +132,9 @@ class Experiment:
         
         Return the accuracy and average loss
         """
+        if self.args.val_ratio== 0.0:
+            print("INFO: Empty validation set.")
+            return None, None, None
         self.model = self.model.eval()
 
         losses = []
@@ -146,7 +179,7 @@ class Experiment:
         # TODO: Save training log (per class accuracy)
         ######
         
-        if self.args.early_stop:
+        if self.args.early_stop and self.args.val_ratio != 0.0:
             early_stopper = self._init_early_stopper()
         
         best_accuracy = 0
@@ -188,23 +221,27 @@ class Experiment:
             # TODO: SAVE THE HISTORY TO A JSON
             history['train_acc'].append(train_acc.item())
             history['train_loss'].append(train_loss)
-            history['val_acc'].append(val_acc.item())
-            history['val_acc_per_class'].append(acc_per_class)
-            history['val_loss'].append(val_loss)
+            if self.args.val_ratio != 0:
+                history['val_acc'].append(val_acc.item())
+                history['val_acc_per_class'].append(acc_per_class)
+                history['val_loss'].append(val_loss)
             
             if self.args.hyper_tune:
                 session.report({"accuracy":val_acc.item(), "loss":val_loss.item()})
 
             # Save model
-            if val_acc > best_accuracy:
-                torch.save(self.model.state_dict(), self.args.save_dir+"best_model.pt") 
-                best_accuracy = val_acc
-                
-            if self.args.early_stop:
-                early_stopper(val_loss)
-                if early_stopper.early_stop:
-                    print("INFO: Early stopping criteria is met. Stop training now...")
-                    break
+            if self.args.val_ratio != 0.0:
+                if val_acc > best_accuracy:
+                    torch.save(self.model.state_dict(), self.args.save_dir+"best_model.pt") 
+                    best_accuracy = val_acc
+
+                if self.args.early_stop:
+                    early_stopper(val_loss)
+                    if early_stopper.early_stop:
+                        print("INFO: Early stopping criteria is met. Stop training now...")
+                        break
+            else:
+                torch.save(self.model.state_dict(), self.args.save_dir+f"model_epoch_{epoch+1}.pt") 
         
         end = time.time()
         print(f"INFO: Training time: {(end-start)/60:.3f} minutes")
@@ -258,3 +295,72 @@ def tuning_session(config, args):
     
     exp = Experiment(args)
     exp.fit()
+    
+def generate_prediction(model, device="cuda", save_dir=None, data_dir = "../data/", ensemble=False, head=None):
+    
+    _,_,idx_to_class = get_classes_indices_mapping(data_dir)
+    
+    test_df = pd.read_csv(data_dir + "sample_submission.csv")
+    val_trans = get_val_trans(image_size=224)
+    
+    if not ensemble:
+        model.to(device)
+        model.eval()
+
+        pred_list = []
+
+        for idx, row in tqdm(test_df.iterrows(), total=len(test_df)):
+            im_dir = os.path.join(data_dir, "test", row["file"])
+            if os.path.isfile(im_dir):
+                test_im = test_image_loader(im_dir, val_trans)
+                test_im = test_im.to(device)
+
+            with torch.no_grad():
+                predicted = model(test_im).data.max(1)[1].cpu().numpy().item()
+                pred_list.append({"file": row["file"], "species": idx_to_class[predicted]})
+
+        df_pred = pd.DataFrame(pred_list)
+
+        if save_dir is None:
+            return df_pred
+        else:
+            print(f"Saving prediction to {save_dir}")
+            df_pred.to_csv(save_dir, index=False)
+    
+    else:
+        logits_all = []
+        for m in model:
+            m = m[1]
+            m.to(device)
+            m.eval()
+
+            pred_list = []
+            outputs = []
+
+            for idx, row in tqdm(test_df.iterrows(), total=len(test_df)):
+                im_dir = os.path.join(data_dir, "test", row["file"])
+                if os.path.isfile(im_dir):
+                    test_im = test_image_loader(im_dir, val_trans)
+                    test_im = test_im.to(device)
+
+                with torch.no_grad():
+                    outputs.append(m(test_im))
+            
+            logits = torch.cat(outputs, dim=0)
+            logits_all.append(logits)
+        
+        logits_all = torch.cat(logits_all, dim=1).detach().cpu().numpy()
+        predicted = head.predict(logits_all)
+        for idx, row in test_df.iterrows():
+            pred_list.append({"file": row["file"], "species": idx_to_class[int(predicted[idx])]})
+
+        df_pred = pd.DataFrame(pred_list)
+
+        if save_dir is None:
+            return df_pred
+        else:
+            print(f"Saving prediction to {save_dir}")
+            df_pred.to_csv(save_dir, index=False)
+            
+            
+            ################ ADD THIS TO ENSEMBLE FUNCTION AND TEST THE RESULTS

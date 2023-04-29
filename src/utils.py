@@ -1,3 +1,5 @@
+# Some miscellaneous functions are here
+
 import os
 
 class EarlyStopping():

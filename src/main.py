@@ -1,3 +1,6 @@
+# This is the main interface where we run specific experiments
+
+
 import argparse
 
 from experiment import Experiment, tuning_session
@@ -32,12 +35,13 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-4)
     
+    parser.add_argument("--val-ratio", type=float, default=0.2)
     parser.add_argument("--early_stop", dest="early_stop", action="store_true")
-    parser.add_argument("--patience", type=int, default=3)
+    parser.add_argument("--patience", type=int, default=15)
     parser.add_argument("--es-delta", type=float, default=0.0)
     parser.add_argument("--checkpoint_path", type=str, default=None)
     
-    parser.add_argument("--data-aug", dest="data_aug", action="store_true")
+    parser.add_argument("--data_aug", type=int, default=0)
     parser.add_argument("--aug-size", type=float, default=1.0)
     parser.add_argument("--tuning-its", type=int, default=5)
     args = parser.parse_args()
@@ -103,7 +107,7 @@ if __name__ == "__main__":
         ss = "ss-" if args.small_sample else ""
         aug = "aug-" if args.data_aug else ""
         
-        best_model_path = f"../results/{ss}ht-{args.model}-{aug}as{arg.aug_size}-ep{args.epochs}-{es}p{args.patience}-dl{args.es_delta}/lr{best_result.config['lr']}-b{best_result.config['batch_size']}/best_model.pt"
+        best_model_path = f"../results/{ss}ht-{args.model}-{aug}as{args.aug_size}-ep{args.epochs}-{es}p{args.patience}-dl{args.es_delta}/lr{best_result.config['lr']}-b{best_result.config['batch_size']}/best_model.pt"
         
         test_exp = Experiment(args)
         test_exp.load_checkpoint(best_model_path)
@@ -117,12 +121,19 @@ if __name__ == "__main__":
         else:
             print("INFO: This is a training session.")
             print()
+            
         exp = Experiment(args)
         exp.fit()
         
-        exp.load_checkpoint(args.save_dir+"best_model.pt")
-        results = exp.pred_on_test()
-        results.to_csv(args.save_dir+"results.csv", index=False)
+        if args.val_ratio != 0:
+            exp.load_checkpoint(args.save_dir+"best_model.pt")
+            results = exp.pred_on_test()
+            results.to_csv(args.save_dir+"results.csv", index=False)
+        else:
+            for i in range(args.epochs):
+                exp.load_checkpoint(args.save_dir+f"model_epoch_{i+1}.pt")
+                results = exp.pred_on_test()
+                results.to_csv(args.save_dir+f"results_epoch_{i+1}.csv", index=False)
 
     # TODO
     # Result plotting

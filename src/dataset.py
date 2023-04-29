@@ -1,3 +1,5 @@
+# This script has all the data processing & loading related functions and classes.
+
 import os
 from os.path import isfile, join, abspath, exists, isdir, expanduser
 from os import listdir, makedirs, getcwd, remove
@@ -78,22 +80,28 @@ class Lighting(object):
 
         return img.add(rgb.view(3, 1, 1).expand_as(img))
 
-def get_train_trans(image_size=224, data_aug = False):
+def get_train_trans(image_size=224, data_aug = 0):
     """
     Transform function for processing images in the training set.
     """
-    if data_aug:
+    aug_list = [transforms.RandomGrayscale(p=0.5),
+                transforms.RandomRotation(degrees=(-150, 150)),
+                transforms.RandomErasing(scale=(0.02, 0.05), ratio=(0.7, 0.9)),
+                Lighting(0.9),
+                transforms.GaussianBlur(7, sigma=(0.1, 1.0))
+            ]
+    if data_aug != 0:
+        ind = np.random.randint(len(aug_list), size=data_aug)
         return transforms.Compose([
             transforms.RandomCrop(image_size, pad_if_needed=True),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-            transforms.RandomRotation(degrees=(60, 90)),
-            transforms.RandomHorizontalFlip(),
-            transforms.GaussianBlur(7, sigma=(0.1, 1.0)),
-            #transforms.ColorJitter(brightness=0.1, saturation=0.1),
-            Lighting(0.9),
-            transforms.RandomErasing(scale=(0.02, 0.05), ratio=(0.7, 0.9)),
-        ])
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomVerticalFlip(p=0.5),
+            aug_list[ind[0]],
+            aug_list[ind[1]],
+            aug_list[ind[2]]
+            ])
     else: 
         return transforms.Compose([
             transforms.CenterCrop(image_size),
@@ -112,7 +120,6 @@ def get_val_trans(image_size=224):
     ])
 
     
-
 #################
 ##  Functions  ##
 #################
@@ -153,13 +160,18 @@ def get_train_val_loader(data_dir, val_ratio=0.2, train_trans=None, val_trans=No
     """
     Generate the train and validation dataloaders.
     """
-    
-    train_df, val_df = train_test_split(get_data_df(data_dir), test_size=val_ratio)
-    
-    train_set = SeedlingDataset(train_df, data_dir, small_sample=small_sample,
-                                transform = train_trans)
-    val_set = SeedlingDataset(val_df, data_dir, small_sample=small_sample,
-                              transform = val_trans)
+    if val_ratio != 0:
+        train_df, val_df = train_test_split(get_data_df(data_dir), test_size=val_ratio, random_state=42)
+
+        train_set = SeedlingDataset(train_df, data_dir, small_sample=small_sample,
+                                    transform = train_trans)
+        val_set = SeedlingDataset(val_df, data_dir, small_sample=small_sample,
+                                  transform = val_trans)
+    else:
+        train_df = get_data_df(data_dir)
+        train_set = SeedlingDataset(train_df, data_dir, small_sample=small_sample,
+                                    transform = train_trans)
+        return (DataLoader(train_set, batch_size=batch_size), None)
     
     if augment_size != 0:
         weights = list(Counter(train_df['label']).values())
@@ -168,9 +180,11 @@ def get_train_val_loader(data_dir, val_ratio=0.2, train_trans=None, val_trans=No
         sampler = WeightedRandomSampler(weights, max_sample*num_classes)
     else:
         sampler = None
-
+    
     return (DataLoader(train_set, batch_size=batch_size, sampler=sampler),
-            DataLoader(val_set, batch_size=batch_size, shuffle=True))
+        DataLoader(val_set, batch_size=batch_size, shuffle=True))
+    # TODO this can be written in a more pythonic way but i don't have time
+    
     
 def test_image_loader(im_dir, trans):
     """

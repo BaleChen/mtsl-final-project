@@ -1,3 +1,5 @@
+# Model loading functions and model class.
+
 import torch
 from torch import nn
 
@@ -47,11 +49,23 @@ def init_pretrained_model(model_name: str, num_class: int):
         in_features = model.fc.in_features
         model.fc = nn.Linear(in_features, num_class)
         return model
+    
     elif model_name == "resnet152":
         model = torch.hub.load("pytorch/vision:v0.13.1", "resnet152", weights="IMAGENET1K_V2")
         in_features = model.fc.in_features
         model.fc = nn.Linear(in_features, num_class)
         return model
     
+    elif model_name == "wide_resnet50_2":
+        model = torch.hub.load("pytorch/vision:v0.13.1", "wide_resnet50_2", weights="IMAGENET1K_V2")
+        in_features = model.fc.in_features
+        model.fc = nn.Linear(in_features, num_class)
+        return model
+    
+    elif model_name == "wide_resnet101_2":
+        model = torch.hub.load("pytorch/vision:v0.13.1", "wide_resnet101_2", weights="IMAGENET1K_V2")
+        in_features = model.fc.in_features
+        model.fc = nn.Linear(in_features, num_class)
+        return model
     else:
         raise Exception(f"Model {model_name} not supported yet.")
