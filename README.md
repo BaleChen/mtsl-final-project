@@ -1,2 +1,3 @@
-# mtsl-final-project
-Final Project of Modern Topics in Statistical Learning Theory.
+# Modern Topics in Statistical Learning Theory Final Project
+
+Final Project of NYU DS-GA 3001 Special Topics: Modern Topics in Statistical Learning Theory (graduate course). The project is essentially a Kaggle-style competition on this [plant seedling dataset](https://www.kaggle.com/competitions/plant-seedlings-classification). This work was done collaboratively by Bale Chen and Tracy Zhu (2 undergraduates at NYU) and won 6th place among 22 groups of graduate students. We experimented with transfer learning, data augmentation, ensemble method, model scaling, RayTune hyperparameter tuning, etc., and achieved an F1 score of 0.983.
